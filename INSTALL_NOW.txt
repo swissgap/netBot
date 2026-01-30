@@ -1,0 +1,19 @@
+═══════════════════════════════════════════════════════════════════════════════
+  🚀 DU BRAUCHST NUR DIESE 2 BEFEHLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Du bist in: /opt/gaming/netBot
+Du hast venv aber Flask ist nicht installiert!
+
+SOLUTION (Copy & Paste):
+
+1. Aktiviere venv:
+   source venv/bin/activate
+
+2. Installiere alles:
+   pip install flask flask-cors paramiko requests pysnmp
+
+FERTIG! Dann:
+   python3 network_monitor_production.py
+
+═══════════════════════════════════════════════════════════════════════════════
