@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTELLIGENT NETWORK MONITOR - ML INSIGHTS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0ff;
+            --secondary: #f0f;
+            --accent: #ff6600;
+            --success: #00ff00;
+            --warning: #ffa500;
+            --danger: #ff1744;
+            --bg-dark: #0a0e27;
+            --bg-darker: #050812;
+            --text-light: #e0e8ff;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
+            font-family: 'Space Mono', monospace;
+            color: var(--text-light);
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(0deg, transparent 24%, rgba(15, 255, 255, 0.03) 25%, rgba(15, 255, 255, 0.03) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.03) 75%, rgba(15, 255, 255, 0.03) 76%, transparent 77%, transparent),
+                linear-gradient(90deg, transparent 24%, rgba(15, 255, 255, 0.03) 25%, rgba(15, 255, 255, 0.03) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.03) 75%, rgba(15, 255, 255, 0.03) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(90deg, rgba(10, 14, 39, 0.9), rgba(5, 8, 18, 0.9));
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 0 30px rgba(15, 255, 255, 0.3);
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .intelligence-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid var(--success);
+            border-radius: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .panel {
+            background: rgba(10, 14, 39, 0.7);
+            border: 2px solid rgba(15, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(15, 255, 255, 0.1);
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .insight-item {
+            background: linear-gradient(135deg, rgba(15, 255, 255, 0.1), rgba(240, 15, 255, 0.05));
+            border-left: 4px solid var(--primary);
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .insight-item:hover {
+            border-left-color: var(--secondary);
+            box-shadow: 0 0 15px rgba(15, 255, 255, 0.2);
+        }
+
+        .insight-label {
+            font-size: 11px;
+            color: var(--primary);
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .insight-value {
+            font-size: 14px;
+            color: var(--secondary);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .anomaly-item {
+            background: rgba(255, 23, 68, 0.1);
+            border-left: 4px solid var(--danger);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            font-size: 11px;
+        }
+
+        .anomaly-severity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .severity-high {
+            background: var(--danger);
+            color: white;
+        }
+
+        .severity-medium {
+            background: var(--warning);
+            color: black;
+        }
+
+        .severity-low {
+            background: var(--success);
+            color: black;
+        }
+
+        .prediction-item {
+            background: rgba(255, 165, 0, 0.1);
+            border-left: 4px solid var(--warning);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            font-size: 11px;
+        }
+
+        .stat-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat {
+            background: rgba(15, 255, 255, 0.05);
+            border: 1px solid rgba(15, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            color: var(--secondary);
+            font-weight: bold;
+            margin-top: 5px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .left-panel {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
+        .center-panel {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .right-panel {
+            grid-column: 3;
+            grid-row: 2;
+        }
+
+        .capability-tag {
+            display: inline-block;
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin: 3px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🧠 INTELLIGENT NETWORK MONITOR</h1>
+            <div class="intelligence-badge">
+                <span>🤖 AI LEARNING ACTIVE</span>
+            </div>
+        </div>
+
+        <!-- LEFT PANEL: INTELLIGENCE STATS -->
+        <div class="left-panel panel">
+            <div class="panel-title">📊 Intelligence Metrics</div>
+            
+            <div class="stat-box">
+                <div class="stat">
+                    <div class="stat-label">Devices Learned</div>
+                    <div class="stat-value" id="devicesLearned">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Anomalies Found</div>
+                    <div class="stat-value" id="anomaliesFound">0</div>
+                </div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat">
+                    <div class="stat-label">Predictions Made</div>
+                    <div class="stat-value" id="predictionsMade">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Model Version</div>
+                    <div class="stat-value" id="modelVersion">1.0</div>
+                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 20px;">🤖 Capabilities</div>
+            <div id="capabilityList" style="font-size: 11px;">
+                <div class="capability-tag">✓ Anomaly Detection</div>
+                <div class="capability-tag">✓ Device Classification</div>
+                <div class="capability-tag">✓ Predictive Analytics</div>
+                <div class="capability-tag">✓ Pattern Recognition</div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 20px;">🎯 Accuracy Metrics</div>
+            <div class="insight-item">
+                <div class="insight-label">Classification Accuracy</div>
+                <div class="insight-value" id="classAccuracy">--</div>
+            </div>
+            <div class="insight-item">
+                <div class="insight-label">Anomaly Detection</div>
+                <div class="insight-value" id="anomalyAccuracy">--</div>
+            </div>
+            <div class="insight-item">
+                <div class="insight-label">Prediction Confidence</div>
+                <div class="insight-value" id="predictionAccuracy">--</div>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL: ANOMALIES -->
+        <div class="center-panel panel">
+            <div class="panel-title">🚨 Detected Anomalies</div>
+            <div id="anomaliesList" style="max-height: 450px; overflow-y: auto;">
+                <div style="color: var(--warning); font-size: 12px;">Learning... Detecting anomalies...</div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: PREDICTIONS & INSIGHTS -->
+        <div class="right-panel panel">
+            <div class="panel-title">🔮 Predictive Insights</div>
+            <div id="predictionsList" style="max-height: 250px; overflow-y: auto; margin-bottom: 20px;">
+                <div style="color: var(--warning); font-size: 12px;">Learning patterns...</div>
+            </div>
+
+            <div class="panel-title">🧬 Device Profiles</div>
+            <div id="deviceProfiles" style="max-height: 200px; overflow-y: auto;">
+                <div style="color: var(--warning); font-size: 12px;">Classifying devices...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        const UPDATE_INTERVAL = 5000;
+
+        async function fetchIntelligence() {
+            try {
+                // Fetch analytics
+                const analyticsRes = await fetch(`${API_BASE}/analytics`);
+                const analytics = await analyticsRes.json();
+
+                // Fetch anomalies
+                const anomaliesRes = await fetch(`${API_BASE}/anomalies`);
+                const anomalies = await anomaliesRes.json();
+
+                // Fetch device profiles
+                const profilesRes = await fetch(`${API_BASE}/device-profiles`);
+                const profiles = await profilesRes.json();
+
+                // Fetch predictions
+                const predictionsRes = await fetch(`${API_BASE}/predictions`);
+                const predictions = await predictionsRes.json();
+
+                // Update display
+                updateMetrics(analytics);
+                updateAnomalies(anomalies);
+                updatePredictions(predictions);
+                updateDeviceProfiles(profiles);
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+        }
+
+        function updateMetrics(analytics) {
+            document.getElementById('devicesLearned').textContent = analytics.devices_profiled || 0;
+            document.getElementById('anomaliesFound').textContent = analytics.anomalies_detected || 0;
+            document.getElementById('modelVersion').textContent = analytics.model_version || 1;
+
+            const metrics = analytics.intelligence_metrics || {};
+            document.getElementById('classAccuracy').textContent = 
+                metrics.classification_accuracy ? (metrics.classification_accuracy * 100).toFixed(1) + '%' : '--';
+            document.getElementById('anomalyAccuracy').textContent = 
+                metrics.anomaly_detection_confidence ? (metrics.anomaly_detection_confidence * 100).toFixed(1) + '%' : '--';
+            document.getElementById('predictionAccuracy').textContent = 
+                metrics.prediction_confidence ? (metrics.prediction_confidence * 100).toFixed(1) + '%' : '--';
+        }
+
+        function updateAnomalies(anomalies) {
+            const container = document.getElementById('anomaliesList');
+            
+            if (!anomalies || anomalies.length === 0) {
+                container.innerHTML = '<div style="color: var(--success); font-size: 12px;">✓ No anomalies detected</div>';
+                return;
+            }
+
+            container.innerHTML = anomalies.slice(-10).map(anom => {
+                const severity = anom.severity || 0;
+                let severityClass = 'severity-low';
+                if (severity > 3) severityClass = 'severity-high';
+                else if (severity > 1) severityClass = 'severity-medium';
+
+                return `
+                    <div class="anomaly-item">
+                        <span class="anomaly-severity ${severityClass}">Severity: ${severity.toFixed(1)}</span>
+                        <br/>
+                        <strong>${anom.device}</strong> - ${anom.metric}
+                        <br/>
+                        <small>Value: ${anom.value.toFixed(2)}, Expected: ${anom.expected.toFixed(2)}</small>
+                        <br/>
+                        <small style="color: var(--warning);">Z-Score: ${anom.z_score.toFixed(2)}</small>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updatePredictions(predictions) {
+            const container = document.getElementById('predictionsList');
+            
+            let html = '';
+            for (const [device, preds] of Object.entries(predictions)) {
+                if (Array.isArray(preds) && preds.length > 0) {
+                    preds.forEach(pred => {
+                        html += `
+                            <div class="prediction-item">
+                                <strong>${device}</strong>
+                                <br/>
+                                📌 ${pred.issue}
+                                <br/>
+                                💡 ${pred.recommendation}
+                                <br/>
+                                <small>Confidence: ${(pred.confidence * 100).toFixed(1)}%</small>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            if (!html) {
+                html = '<div style="color: var(--warning); font-size: 12px;">Gathering prediction data...</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function updateDeviceProfiles(profiles) {
+            const container = document.getElementById('deviceProfiles');
+            
+            if (!profiles || Object.keys(profiles).length === 0) {
+                container.innerHTML = '<div style="color: var(--warning); font-size: 12px;">Learning device profiles...</div>';
+                return;
+            }
+
+            let html = '';
+            Object.entries(profiles).slice(0, 8).forEach(([device, profile]) => {
+                html += `
+                    <div class="insight-item">
+                        <div class="insight-label">${device}</div>
+                        <div class="insight-value">${profile.class}</div>
+                        <small style="color: rgba(224, 232, 255, 0.6);">
+                            Confidence: ${(profile.confidence * 100).toFixed(1)}%
+                        </small>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Initialize and start polling
+        console.log('Intelligent Monitor Initialized');
+        console.log('🧠 Machine Learning Mode: ACTIVE');
+        console.log('📊 Real Data Analysis: ENABLED');
+        console.log('🎯 Self-Learning: CONTINUOUS');
+
+        fetchIntelligence();
+        setInterval(fetchIntelligence, UPDATE_INTERVAL);
+    </script>
+</body>
+</html>
