@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MULTI-VENDOR NETWORK MONITOR - PRODUCTION</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0ff;
+            --secondary: #f0f;
+            --accent: #ff6600;
+            --bg-dark: #0a0e27;
+            --bg-darker: #050812;
+            --text-light: #e0e8ff;
+            --border: #1a4d4d;
+            --success: #00ff00;
+            --danger: #ff1744;
+            --warning: #ffa500;
+            --cisco: #1ba1e2;
+            --huawei: #ff7f3f;
+            --ubiquiti: #0066cc;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
+            font-family: 'Space Mono', monospace;
+            color: var(--text-light);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(0deg, transparent 24%, rgba(15, 255, 255, 0.05) 25%, rgba(15, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.05) 75%, rgba(15, 255, 255, 0.05) 76%, transparent 77%, transparent),
+                linear-gradient(90deg, transparent 24%, rgba(15, 255, 255, 0.05) 25%, rgba(15, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.05) 75%, rgba(15, 255, 255, 0.05) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(90deg, rgba(10, 14, 39, 0.9), rgba(5, 8, 18, 0.9));
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 0 30px rgba(15, 255, 255, 0.3), inset 0 0 30px rgba(15, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 28px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .vendor-panel {
+            background: rgba(10, 14, 39, 0.7);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(15, 255, 255, 0.1), inset 0 0 20px rgba(15, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .vendor-panel.cisco {
+            border-top: 4px solid var(--cisco);
+        }
+
+        .vendor-panel.huawei {
+            border-top: 4px solid var(--huawei);
+        }
+
+        .vendor-panel.ubiquiti {
+            border-top: 4px solid var(--ubiquiti);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--secondary);
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .vendor-label {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            background: rgba(15, 255, 255, 0.2);
+            color: var(--primary);
+        }
+
+        .vendor-label.cisco {
+            background: rgba(27, 161, 226, 0.2);
+            color: var(--cisco);
+        }
+
+        .vendor-label.huawei {
+            background: rgba(255, 127, 63, 0.2);
+            color: var(--huawei);
+        }
+
+        .vendor-label.ubiquiti {
+            background: rgba(0, 102, 204, 0.2);
+            color: var(--ubiquiti);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.online {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status-dot.offline {
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(15, 255, 255, 0.05);
+            border-left: 2px solid var(--primary);
+            border-radius: 3px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--secondary);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .device-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .device-item {
+            background: linear-gradient(90deg, rgba(15, 255, 255, 0.1), rgba(240, 15, 255, 0.05));
+            border-left: 3px solid var(--primary);
+            padding: 8px;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            font-size: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .device-item:hover {
+            box-shadow: 0 0 10px rgba(15, 255, 255, 0.2);
+        }
+
+        .device-name {
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 2px;
+        }
+
+        .device-info {
+            color: rgba(224, 232, 255, 0.7);
+            font-size: 9px;
+        }
+
+        .error-banner {
+            background: rgba(255, 23, 68, 0.2);
+            border: 1px solid var(--danger);
+            border-radius: 3px;
+            padding: 8px;
+            margin-bottom: 10px;
+            color: var(--danger);
+            font-size: 11px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        .data-source {
+            font-size: 9px;
+            color: var(--accent);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>⚡ MULTI-VENDOR NETWORK MONITOR ⚡</h1>
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div class="status-indicator">
+                    <div class="status-dot online" id="statusDot"></div>
+                    <div id="statusText" style="font-size: 12px;">INITIALIZING...</div>
+                </div>
+                <div style="font-size: 11px; color: var(--accent);">
+                    Switches: <span id="switchCount">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- VENDOR PANELS -->
+        <div class="main-content">
+            <!-- CISCO CATALYST 9300 -->
+            <div class="vendor-panel cisco">
+                <div class="panel-header">
+                    <div class="panel-title">📡 Cisco Catalyst</div>
+                    <div class="vendor-label cisco">C9300</div>
+                </div>
+                <div id="errorBanner_cisco" class="error-banner" style="display:none;"></div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="cisco_status"></div>
+                    <span id="cisco_conn" style="font-size: 10px;">Offline</span>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="cisco_status_text" style="font-size: 12px;">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Ports</div>
+                    <div class="stat-value" id="cisco_ports">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Hosts</div>
+                    <div class="stat-value" id="cisco_hosts">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Update</div>
+                    <div class="stat-value" id="cisco_update" style="font-size: 11px;">--</div>
+                </div>
+
+                <div class="device-list">
+                    <div id="cisco_devices" style="font-size: 9px; color: rgba(224, 232, 255, 0.7);">
+                        Loading...
+                    </div>
+                </div>
+
+                <div class="data-source">
+                    SSH + SNMP
+                </div>
+            </div>
+
+            <!-- HUAWEI HN8255Ws -->
+            <div class="vendor-panel huawei">
+                <div class="panel-header">
+                    <div class="panel-title">🔗 Huawei HN8255Ws</div>
+                    <div class="vendor-label huawei">HN8255</div>
+                </div>
+                <div id="errorBanner_huawei" class="error-banner" style="display:none;"></div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="huawei_status"></div>
+                    <span id="huawei_conn" style="font-size: 10px;">Offline</span>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="huawei_status_text" style="font-size: 12px;">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Ports</div>
+                    <div class="stat-value" id="huawei_ports">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Hosts</div>
+                    <div class="stat-value" id="huawei_hosts">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">CPU / Mem</div>
+                    <div class="stat-value" id="huawei_resources" style="font-size: 11px;">--</div>
+                </div>
+
+                <div class="device-list">
+                    <div id="huawei_devices" style="font-size: 9px; color: rgba(224, 232, 255, 0.7);">
+                        Loading...
+                    </div>
+                </div>
+
+                <div class="data-source">
+                    REST API + LLDP
+                </div>
+            </div>
+
+            <!-- UNIFI UCK G2+ -->
+            <div class="vendor-panel ubiquiti">
+                <div class="panel-header">
+                    <div class="panel-title">🛡️ UniFi UCK G2+</div>
+                    <div class="vendor-label ubiquiti">UCK</div>
+                </div>
+                <div id="errorBanner_uck" class="error-banner" style="display:none;"></div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="uck_status"></div>
+                    <span id="uck_conn" style="font-size: 10px;">Offline</span>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="uck_status_text" style="font-size: 12px;">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Ports</div>
+                    <div class="stat-value" id="uck_ports">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Clients</div>
+                    <div class="stat-value" id="uck_clients">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Version</div>
+                    <div class="stat-value" id="uck_version" style="font-size: 11px;">--</div>
+                </div>
+
+                <div class="device-list">
+                    <div id="uck_devices" style="font-size: 9px; color: rgba(224, 232, 255, 0.7);">
+                        Loading...
+                    </div>
+                </div>
+
+                <div class="data-source">
+                    UniFi OS API
+                </div>
+            </div>
+
+            <!-- UNIFI UXG MAX -->
+            <div class="vendor-panel ubiquiti">
+                <div class="panel-header">
+                    <div class="panel-title">🚀 UniFi UXG Max</div>
+                    <div class="vendor-label ubiquiti">UXG</div>
+                </div>
+                <div id="errorBanner_uxg" class="error-banner" style="display:none;"></div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="uxg_status"></div>
+                    <span id="uxg_conn" style="font-size: 10px;">Offline</span>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="uxg_status_text" style="font-size: 12px;">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Ports</div>
+                    <div class="stat-value" id="uxg_ports">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Clients</div>
+                    <div class="stat-value" id="uxg_clients">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">WAN / LAN</div>
+                    <div class="stat-value" id="uxg_bandwidth" style="font-size: 11px;">--</div>
+                </div>
+
+                <div class="device-list">
+                    <div id="uxg_devices" style="font-size: 9px; color: rgba(224, 232, 255, 0.7);">
+                        Loading...
+                    </div>
+                </div>
+
+                <div class="data-source">
+                    REST API + Firewall
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        const UPDATE_INTERVAL = 5000;
+
+        const vendorConfigs = {
+            cisco: { element: 'cisco', label: 'Cisco Catalyst 9300', color: '#1ba1e2' },
+            huawei: { element: 'huawei', label: 'Huawei HN8255Ws', color: '#ff7f3f' },
+            uck: { element: 'uck', label: 'UniFi UCK G2+', color: '#0066cc' },
+            uxg: { element: 'uxg', label: 'UniFi UXG Max', color: '#0066cc' }
+        };
+
+        async function fetchLiveData() {
+            try {
+                // Get summary
+                const summaryRes = await fetch(`${API_BASE}/summary`);
+                if (!summaryRes.ok) throw new Error(`Summary API error: ${summaryRes.status}`);
+                const summary = await summaryRes.json();
+
+                if (!summary.data_source.includes("LIVE")) {
+                    throw new Error("Backend returned non-live data!");
+                }
+
+                updateGlobalStatus(summary);
+
+                // Fetch detailed info for each switch
+                for (const switchData of summary.switches) {
+                    try {
+                        const switchRes = await fetch(`${API_BASE}/switch/${switchData.name}`);
+                        if (switchRes.ok) {
+                            const switchDetail = await switchRes.json();
+                            updateVendorPanel(switchData.name, switchDetail, switchData.vendor);
+                        }
+                    } catch (e) {
+                        console.error(`Error fetching ${switchData.name}:`, e);
+                    }
+                }
+
+                updateGlobalStatusIndicator('healthy');
+
+            } catch (error) {
+                console.error('Data fetch error:', error);
+                updateGlobalStatusIndicator('error');
+            }
+        }
+
+        function updateGlobalStatus(summary) {
+            document.getElementById('switchCount').textContent = summary.total_switches;
+        }
+
+        function updateGlobalStatusIndicator(status) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            if (status === 'healthy') {
+                dot.className = 'status-dot online';
+                text.textContent = 'HEALTHY';
+            } else if (status === 'degraded') {
+                dot.className = 'status-dot offline';
+                dot.style.background = '#ffa500';
+                text.textContent = 'DEGRADED';
+            } else {
+                dot.className = 'status-dot offline';
+                text.textContent = 'ERROR';
+            }
+        }
+
+        function updateVendorPanel(switchName, switchDetail, vendor) {
+            let vendorKey = null;
+
+            if (vendor === 'cisco') vendorKey = 'cisco';
+            else if (vendor === 'huawei') vendorKey = 'huawei';
+            else if (vendor === 'ubiquiti') {
+                if (switchName.includes('UCK')) vendorKey = 'uck';
+                else if (switchName.includes('UXG')) vendorKey = 'uxg';
+            }
+
+            if (!vendorKey) return;
+
+            const config = vendorConfigs[vendorKey];
+            const statusDot = document.getElementById(`${vendorKey}_status`);
+            const statusText = document.getElementById(`${vendorKey}_conn`);
+            const statusValue = document.getElementById(`${vendorKey}_status_text`);
+
+            // Update connection status
+            if (switchDetail.connected) {
+                statusDot.className = 'status-dot online';
+                statusText.textContent = 'Online';
+                statusValue.textContent = '✓ Connected';
+            } else {
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = 'Offline';
+                statusValue.textContent = '✗ Disconnected';
+            }
+
+            // Update stats
+            document.getElementById(`${vendorKey}_ports`).textContent = switchDetail.ports ? Object.keys(switchDetail.ports).length : '--';
+            document.getElementById(`${vendorKey}_hosts`).textContent = switchDetail.hosts ? switchDetail.hosts.length : '--';
+
+            // Vendor-specific updates
+            if (vendorKey === 'cisco') {
+                document.getElementById('cisco_update').textContent = switchDetail.health?.last_update ? 
+                    new Date(switchDetail.health.last_update).toLocaleTimeString() : '--';
+                updateDeviceList('cisco', switchDetail.hosts || []);
+            } else if (vendorKey === 'huawei') {
+                const cpu = switchDetail.health?.cpu_usage || '--';
+                const mem = switchDetail.health?.memory_usage || '--';
+                document.getElementById('huawei_resources').textContent = `${cpu}% / ${mem}%`;
+                updateDeviceList('huawei', switchDetail.hosts || []);
+            } else if (vendorKey === 'uck') {
+                document.getElementById('uck_clients').textContent = switchDetail.hosts ? switchDetail.hosts.length : '--';
+                document.getElementById('uck_version').textContent = switchDetail.health?.version || '--';
+                updateDeviceList('uck', switchDetail.hosts || []);
+            } else if (vendorKey === 'uxg') {
+                document.getElementById('uxg_clients').textContent = switchDetail.hosts ? switchDetail.hosts.length : '--';
+                const wanOut = switchDetail.traffic_history?.[0]?.wan_out_bytes || 0;
+                const lanIn = switchDetail.traffic_history?.[0]?.lan_in_bytes || 0;
+                document.getElementById('uxg_bandwidth').textContent = 
+                    `${(wanOut / 1e6).toFixed(1)}/${(lanIn / 1e6).toFixed(1)}M`;
+                updateDeviceList('uxg', switchDetail.hosts || []);
+            }
+        }
+
+        function updateDeviceList(vendor, hosts) {
+            const container = document.getElementById(`${vendor}_devices`);
+            
+            if (!hosts || hosts.length === 0) {
+                container.innerHTML = '<div style="color: var(--warning);">No devices discovered</div>';
+                return;
+            }
+
+            container.innerHTML = hosts.slice(0, 5).map(host => `
+                <div class="device-item">
+                    <div class="device-name">${host.hostname || host.ip || host.mac}</div>
+                    <div class="device-info">${host.ip || host.mac}</div>
+                </div>
+            `).join('');
+        }
+
+        // Initialize
+        console.log('Multi-Vendor Dashboard Initialized');
+        console.log('Data Source: LIVE ONLY (Cisco/Huawei/Ubiquiti)');
+        fetchLiveData();
+        setInterval(fetchLiveData, UPDATE_INTERVAL);
+    </script>
+</body>
+</html>

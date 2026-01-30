@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CATALYST 9300 NETWORK MONITOR - PRODUCTION</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0ff;
+            --secondary: #f0f;
+            --accent: #ff6600;
+            --bg-dark: #0a0e27;
+            --bg-darker: #050812;
+            --text-light: #e0e8ff;
+            --border: #1a4d4d;
+            --success: #00ff00;
+            --danger: #ff1744;
+            --warning: #ffa500;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
+            font-family: 'Space Mono', monospace;
+            color: var(--text-light);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(0deg, transparent 24%, rgba(15, 255, 255, 0.05) 25%, rgba(15, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.05) 75%, rgba(15, 255, 255, 0.05) 76%, transparent 77%, transparent),
+                linear-gradient(90deg, transparent 24%, rgba(15, 255, 255, 0.05) 25%, rgba(15, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(15, 255, 255, 0.05) 75%, rgba(15, 255, 255, 0.05) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(90deg, rgba(10, 14, 39, 0.9), rgba(5, 8, 18, 0.9));
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 0 30px rgba(15, 255, 255, 0.3), inset 0 0 30px rgba(15, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 28px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.healthy {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .status-dot.degraded {
+            background: var(--warning);
+            box-shadow: 0 0 10px var(--warning);
+        }
+
+        .status-dot.error {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .panel {
+            background: rgba(10, 14, 39, 0.7);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(15, 255, 255, 0.1), inset 0 0 20px rgba(15, 255, 255, 0.05);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, rgba(15, 255, 255, 0.05), rgba(240, 15, 255, 0.05));
+            border: 1px solid var(--primary);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--secondary);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .left-panel {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .center-panel {
+            grid-column: 2;
+            grid-row: 2;
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            overflow: hidden;
+        }
+
+        .traffic-chart {
+            position: relative;
+            height: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(5, 8, 18, 0.5);
+        }
+
+        .right-panel {
+            grid-column: 3;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .device-item {
+            background: linear-gradient(90deg, rgba(15, 255, 255, 0.1), rgba(240, 15, 255, 0.05));
+            border-left: 3px solid var(--primary);
+            padding: 12px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .device-item.offline {
+            border-left-color: var(--danger);
+            opacity: 0.6;
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .device-name {
+            font-weight: bold;
+            color: var(--primary);
+            font-size: 12px;
+        }
+
+        .device-status {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: rgba(0, 255, 0, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .device-status.offline {
+            background: rgba(255, 23, 68, 0.2);
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .device-info {
+            font-size: 10px;
+            color: rgba(224, 232, 255, 0.7);
+        }
+
+        .error-banner {
+            background: rgba(255, 23, 68, 0.2);
+            border: 1px solid var(--danger);
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            color: var(--danger);
+            font-size: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--warning);
+            font-weight: bold;
+            padding: 20px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary);
+        }
+
+        .data-source {
+            font-size: 10px;
+            color: var(--accent);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>⚡ CATALYST 9300 - PRODUCTION MONITOR ⚡</h1>
+            <div class="status-indicator">
+                <div class="status-dot healthy" id="statusDot"></div>
+                <div id="statusText">INITIALIZING...</div>
+            </div>
+        </div>
+
+        <!-- LEFT PANEL -->
+        <div class="left-panel panel">
+            <div class="panel-title">📊 NETWORK STATS</div>
+            <div id="errorBanner"></div>
+            <div class="stat-box">
+                <div class="stat-label">Discovered Hosts</div>
+                <div class="stat-value" id="totalHosts">--</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Online</div>
+                <div class="stat-value" id="onlineHosts" style="color: var(--success);">--</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Offline</div>
+                <div class="stat-value" id="offlineHosts" style="color: var(--danger);">--</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Ports Up</div>
+                <div class="stat-value" id="activePorts">--</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Last Update</div>
+                <div class="stat-value" id="lastUpdate" style="font-size: 12px;">--</div>
+            </div>
+            <div class="data-source">
+                DATA SOURCE: LIVE
+                <br/>SNMP + SSH + Netflow
+            </div>
+        </div>
+
+        <!-- CENTER PANEL -->
+        <div class="center-panel">
+            <div class="panel">
+                <div class="panel-title">📊 TRAFFIC ANALYSIS</div>
+                <div class="traffic-chart">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">🔌 PORT STATUS</div>
+                <div class="traffic-chart">
+                    <canvas id="portChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="right-panel panel">
+            <div class="panel-title">🖥️ DISCOVERED HOSTS</div>
+            <div id="deviceList" style="flex: 1; overflow-y: auto;">
+                <div class="loading">Loading live data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let trafficChart = null;
+        let portChart = null;
+
+        // ONLY use LIVE data
+        const dataConfig = {
+            requiresLiveBackend: true,
+            fallbackOnNoData: false, // NO fallback to demo data
+            updateInterval: 5000, // 5 seconds
+            chartDataPoints: 60,
+        };
+
+        async function fetchLiveData() {
+            try {
+                // Fetch summary
+                const summaryRes = await fetch(`${API_BASE}/summary`);
+                if (!summaryRes.ok) throw new Error(`API error: ${summaryRes.status}`);
+                const summary = await summaryRes.json();
+
+                // Verify data source is LIVE
+                if (!summary.data_source.includes("LIVE")) {
+                    throw new Error("Backend returned non-live data!");
+                }
+
+                updateSummary(summary);
+
+                // Fetch hosts
+                const hostsRes = await fetch(`${API_BASE}/hosts`);
+                if (!hostsRes.ok) throw new Error(`API error: ${hostsRes.status}`);
+                const hosts = await hostsRes.json();
+                updateHostsList(hosts);
+
+                // Fetch traffic
+                const trafficRes = await fetch(`${API_BASE}/traffic`);
+                if (!trafficRes.ok) throw new Error(`API error: ${trafficRes.status}`);
+                const traffic = await trafficRes.json();
+                updateTrafficChart(traffic);
+
+                // Fetch ports
+                const portsRes = await fetch(`${API_BASE}/ports`);
+                if (!portsRes.ok) throw new Error(`API error: ${portsRes.status}`);
+                const ports = await portsRes.json();
+                updatePortChart(ports);
+
+                // Check health
+                const healthRes = await fetch(`${API_BASE}/health`);
+                if (!healthRes.ok) throw new Error(`API error: ${healthRes.status}`);
+                const health = await healthRes.json();
+                updateHealthStatus(health);
+
+                clearErrorBanner();
+
+            } catch (error) {
+                handleDataError(error);
+            }
+        }
+
+        function updateSummary(data) {
+            document.getElementById('totalHosts').textContent = data.total_discovered_hosts || '--';
+            document.getElementById('onlineHosts').textContent = data.online_hosts || '--';
+            document.getElementById('offlineHosts').textContent = data.offline_hosts || '--';
+            document.getElementById('activePorts').textContent = data.ports_operational || '--';
+            
+            const lastUpdate = new Date(data.last_successful_update);
+            document.getElementById('lastUpdate').textContent = lastUpdate.toLocaleTimeString();
+        }
+
+        function updateHostsList(hosts) {
+            const list = document.getElementById('deviceList');
+            
+            if (!hosts || hosts.length === 0) {
+                list.innerHTML = '<div class="loading">No hosts discovered yet...</div>';
+                return;
+            }
+
+            list.innerHTML = '';
+            hosts.forEach(host => {
+                const deviceEl = document.createElement('div');
+                deviceEl.className = `device-item ${host.status === 'online' ? '' : 'offline'}`;
+                deviceEl.innerHTML = `
+                    <div class="device-header">
+                        <div class="device-name">${host.hostname}</div>
+                        <div class="device-status ${host.status === 'online' ? '' : 'offline'}">
+                            ${host.status.toUpperCase()}
+                        </div>
+                    </div>
+                    <div class="device-info">
+                        <div>${host.ip} | ${host.mac}</div>
+                        <div style="color: var(--warning);">Last: ${Math.round(host.seconds_since_seen)}s ago</div>
+                    </div>
+                `;
+                list.appendChild(deviceEl);
+            });
+        }
+
+        function updateTrafficChart(traffic) {
+            if (!trafficChart || !traffic || traffic.length === 0) {
+                if (!trafficChart) initTrafficChart();
+                return;
+            }
+
+            const recentData = traffic.slice(-60);
+            const labels = recentData.map((_, i) => `${i}s`);
+            const inData = recentData.map(t => (t.total_in_octets || 0) / 1000000); // Convert to Mbps
+            const outData = recentData.map(t => (t.total_out_octets || 0) / 1000000);
+
+            trafficChart.data.labels = labels;
+            trafficChart.data.datasets[0].data = inData;
+            trafficChart.data.datasets[1].data = outData;
+            trafficChart.update('none');
+        }
+
+        function updatePortChart(ports) {
+            if (!portChart || !ports) {
+                if (!portChart) initPortChart();
+                return;
+            }
+
+            const portArray = Object.values(ports).slice(0, 24);
+            const labels = portArray.map(p => p.name);
+            const data = portArray.map(p => p.oper_status === 'up' ? 1 : 0);
+
+            portChart.data.labels = labels;
+            portChart.data.datasets[0].data = data;
+            portChart.update('none');
+        }
+
+        function updateHealthStatus(health) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            statusDot.className = `status-dot ${health.status}`;
+            statusText.textContent = health.status.toUpperCase();
+
+            if (health.status !== 'healthy') {
+                showErrorBanner(`System Status: ${health.status}`);
+            }
+        }
+
+        function handleDataError(error) {
+            console.error('Data fetch error:', error);
+            showErrorBanner(`⚠️ Error: ${error.message}`);
+            
+            // NEVER use fallback data - show error instead
+            const statusDot = document.getElementById('statusDot');
+            statusDot.className = 'status-dot error';
+            document.getElementById('statusText').textContent = 'ERROR - Check Backend';
+        }
+
+        function showErrorBanner(message) {
+            const banner = document.getElementById('errorBanner');
+            banner.innerHTML = `<div class="error-banner">${message}</div>`;
+        }
+
+        function clearErrorBanner() {
+            document.getElementById('errorBanner').innerHTML = '';
+        }
+
+        function initTrafficChart() {
+            const ctx = document.getElementById('trafficChart').getContext('2d');
+            trafficChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Inbound (Mbps)',
+                            data: [],
+                            borderColor: '#0ff',
+                            backgroundColor: 'rgba(15, 255, 255, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 0,
+                            borderWidth: 2,
+                        },
+                        {
+                            label: 'Outbound (Mbps)',
+                            data: [],
+                            borderColor: '#f0f',
+                            backgroundColor: 'rgba(240, 15, 255, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 0,
+                            borderWidth: 2,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#0ff', font: { family: "'Space Mono', monospace" } } }
+                    },
+                    scales: {
+                        y: {
+                            ticks: { color: 'rgba(224, 232, 255, 0.5)' },
+                            grid: { color: 'rgba(15, 255, 255, 0.1)' },
+                            beginAtZero: true
+                        },
+                        x: {
+                            ticks: { color: 'rgba(224, 232, 255, 0.5)' },
+                            grid: { color: 'rgba(15, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initPortChart() {
+            const ctx = document.getElementById('portChart').getContext('2d');
+            portChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Port Status',
+                        data: [],
+                        backgroundColor: 'rgba(15, 255, 255, 0.5)',
+                        borderColor: '#0ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { labels: { color: '#0ff' } }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'rgba(224, 232, 255, 0.5)' },
+                            grid: { color: 'rgba(15, 255, 255, 0.1)' },
+                            max: 1
+                        },
+                        y: {
+                            ticks: { color: 'rgba(224, 232, 255, 0.5)' },
+                            grid: { color: 'rgba(15, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize and start polling
+        initTrafficChart();
+        initPortChart();
+        fetchLiveData();
+        setInterval(fetchLiveData, dataConfig.updateInterval);
+
+        // Log initialization
+        console.log('Production Dashboard Initialized');
+        console.log('Data Source: LIVE ONLY (SNMP + SSH + Netflow)');
+        console.log('No simulation or demo data will be displayed');
+    </script>
+</body>
+</html>
